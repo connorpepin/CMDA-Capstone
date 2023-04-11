@@ -1,0 +1,124 @@
+---
+title: "CapstoneAnalysis"
+author: "Connor Pepin"
+date: "2023-04-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(leaps)
+library(dplyr)
+library(glmnet)
+```
+
+
+
+```{r}
+capstoneDataOG <- read.csv("CLEAN_DATA_FOR_ANALYSIS.csv")
+capstoneData <- data.frame(capstoneDataOG)
+
+# Removing Empty Bottom Rows
+capstoneData <- capstoneData[-c(133:145), ]
+```
+
+
+
+# Filling in NAs 
+
+```{r}
+for (i in colnames(capstoneDataOG))
+{
+  capstoneData[,i][is.na(capstoneData[,i])] <- median(capstoneData[,i], na.rm=TRUE)
+}
+```
+
+
+# Standardizing the Data
+
+```{r}
+
+# Does the same thing as scale()
+
+#capstoneDataSTD <- subset(capstoneData, select = -c(1, 2, 3))
+#capstoneDataSTD <- capstoneDataSTD %>% mutate_all(~(scale(.) %>% as.vector))
+#ObesityRate <- capstoneDataOG$ObesityRate
+#FIPS <- capstoneDataOG$FIPS
+#County <- capstoneDataOG$County
+#capstoneDataSTD <- capstoneDataSTD %>% mutate(ObesityRate, .before=MedianHouseholdIncome2015)
+
+```
+
+```{r}
+capstoneDataScaled <- subset(capstoneData, select = -c(1, 2, 3))
+capstoneDataScaled <- scale(capstoneDataScaled, center = TRUE, scale = TRUE)
+```
+
+```{r}
+# HARDCODING the removal of NaN columns
+capstoneDataScaled <- subset(capstoneDataScaled, select = -c(PCT_SNAP12, 
+                                                             PCT_SNAP17, 
+                                                             PCH_SNAP_12_17,
+                                                             PCT_SBP12,
+                                                             PCT_SBP17,
+                                                             PCH_SBP_12_17,
+                                                             PCT_SFSP12,
+                                                             PCH_SFSP_12_17, 
+                                                             PCT_WIC12, PCT_WIC17,
+                                                             PCH_WIC_12_17, PCT_WICINFANTCHILD14,
+                                                             PCT_WICINFANTCHILD16, PCH_WICINFANTCHILD_14_16,
+                                                             PCT_WICWOMEN14, PCT_WICWOMEN16, 
+                                                             PCH_WICWOMEN_14_16, PCT_CACFP12,
+                                                             PCT_CACFP17, PCH_CACFP_12_17, 
+                                                             FDPIR12, FDPIR15, PCH_FDPIR_12_15, 
+                                                             PCT_SFSP17))
+
+```
+
+# Lasso
+
+```{r}
+
+fit <- glmnet(capstoneDataScaled, capstoneData$ObesityRate, family = 'poisson')
+
+```
+
+```{R}
+lambdaValues <- fit$lambda
+plot(lambdaValues)
+
+```
+
+```{r}
+
+fit <- glmnet(capstoneDataScaled, capstoneData$ObesityRate, family = 'poisson', lambda = lambdaValues)
+plot(fit)
+
+```
+
+
+
+
+
+
+
+# Exhaustive Approach (DO NOT USE)
+
+```{r}
+regfit.full <- regsubsets(ObesityRate ~ Adult.Care.Home.Food.Service + Carry.Out.Food.Service.Only + 
+                            Convenience.Store.Food.Service + Fast.Food.Restaurant.Seasonal.FF. +
+                            Full.Service.Restaurant + Mobile.Food.Unit + 
+                            Grocery.Store.Food.Service + Fast.Food, data = capstoneData,
+                          method = 'exhaustive', nbest = 2)
+
+output = summary(regfit.full, all.best = TRUE)
+# Organizing the Criterion into a matrix
+criterion_mat <- cbind(output$rsq,output$adjr2,output$cp, output$bic)
+
+colnames(criterion_mat) = c('R2', 'AdjR2', 'Cp','BIC')
+# Combine the Criterion with the Model
+results_mat = cbind(output$outmat, round(criterion_mat,3))
+results_mat
+```
+
+
